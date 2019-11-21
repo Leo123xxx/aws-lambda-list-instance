@@ -1,0 +1,19 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: Lambda SAM template using 256mb with 1 minute timeout.
+Resources:
+  LambdaCodeTagsLEV:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.7
+      CodeUri: .
+      Description: 256mb wit 1 minute timeout
+      MemorySize: 256
+      Timeout: 60
+      Role: 'arn:aws:iam::111111111111:role/LambdaMasterExecutionRole'
+      Environment:
+        Variables:
+          INSTANCE_TAGS: 'K8s,AccountB, testinLambda, Account2,WebServerGroup,'
+          ROLE_ARNS: >-
+            arn:aws:iam::22222222222222222:role/LambdaAssumeRoleForMaster,arn:aws:iam::111111111111:role/LambdaMasterExecutionRole,arn:aws:iam::3333333333333333:role/LambdaAssumeRoleForMaster

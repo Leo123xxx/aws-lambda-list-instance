@@ -1,0 +1,231 @@
+################################################################################################################################################
+## Description: Instructions for setting up AWS account for Lambda function to list ec2 instances with Dynamic tags in all regions for Multiple AWS accounts stored in SSM Parameter Store or Lambda Environmental Variables(LEV).
+## Author: Leo Makhubele
+## Email: leomakhubele@gmail.com
+## GitHub Repository: https://github.com/Leo123xxx/aws-lambda-list-instance-sample.git
+################################################################################################################################################
+
+
+These instructions should be followed as per the requirement detailed below. Any modifications to Code/Script(CS) if not instructed to do so might result in failures or unexpected behaviors:
+
+REQUIREMENT:
+------------
+""Please write a Lambda procedure in Python 3, which will scan through all the AWS Accounts in our AWS organisation and list all the EC2 instances, there status, and the value of a tag that is configurable at the top of your code.""
+
+  ***NOTE: For "tag that is configurable at the top of your code." requirement. I have substituted this with Lambda Environmental Variables(LEV) and SSM Parameter Store value Stringlist to keep the script as clean as possible so that you can define the required tags in the Environment Variables[1] section for the Lambda function or pull for the Parameter Store key.***
+
+
+PREREQUISITES:
+--------------
+1. Make sure you have admin access to 2 or more AWS accounts within the Organisation.
+2. Make sure you have permissions to create IAM Roles in all accounts that will be tested.
+3. Make sure you have created an S3 bucket in the MASTER account to store the lambda function code execution output.
+
+NOTE: For best results. Have minimum 1 instances in any STATE[3] in all accounts that will be tested against different tags.
+
+STEPS:  
+
+NOTE: For MASTER account. Make sure you create all the resources in the same region( e.g us-east-1).
+
+  SLAVES:
+
+    1. In the SLAVE accounts. Create the IAM role that will be assumemed by the MASTER IAM Role: (Repeat these steps on all SLAVE accounts)
+
+      1a. Go to the IAM Dashboard from the AWS Management Console. Quicklink: https://console.aws.amazon.com/iam/home
+      1b. Navigate to Roles >> Create role.
+      1c. On the Create Role Page. Choose "AWS Service" >> Lambda >> Then click "Next: Permissions". Atthach the following Permissions:
+
+              - AmazonEC2ReadOnlyAccess
+
+      1d. Click "Next: Tags" (add tags you desire) >> Click "Next: Review" >> Add the following
+
+              - Role name* = LambdaAssumeRoleForMaster
+              - Role description = add decription you desire
+
+      1e. Click "Create role"
+    
+    2. On the Roles page, search role "LambdaAssumeRoleFromMaster" and select it. Then copy the "Role ARN" and save it some where. NOTE: The ARN should look similar to this: "arn:aws:iam::222222222222:role/LambdaAssumeRoleForMaster"
+
+
+    3. ****FOR THIS STEP. MAKE SURE TO COMPLETE THE STEPS FOR THE MASTER SECTION BEFORE CONTINUING.*****
+
+      3a. On the Role summary page(LambdaAssumeRoleForMaster). Click "Trust relationships" >> Edit trust relationship. And paste the below policy substituting the princilple with the IAM eole created for the master:
+        --------------------------------
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": "arn:aws:iam::111111111111:role/LambdaMasterExecutionRole"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        }
+        --------------------------------
+      
+      3b. Then click Create Trust Policy.
+
+
+  SSM Parameter Store: (Follow these instrutions when testing the Lambda function Named "LambdaCodeTagsSSM.py" or "LambdaListInstancesWithTagsSSM.py")
+
+  1. In the MASTER account. Create the a Parameter that will hold all the IAM Role ARN's for all the SLAVE accounts.
+
+      1a. Go to the AWS Systems Manager from the AWS Management Console. Quicklink: https://console.aws.amazon.com/systems-manager/home
+      1b. Navigate to "Parameter Store" on the left pane. Click "Create parameter" and add the below:
+
+              - Name = rolearnlist       << Used as per the code in Lambda function.>>
+              - Description = AWS account ARNs for SLAVE IAM Roles
+              - Tier = Standard
+              - Type = StringList
+              - Value = Add the roles ARNs that you created
+                    - You should have something like this: "arn:aws:iam::22222222222222222:role/LambdaAssumeRoleForMaster,arn:aws:iam::111111111111:role/LambdaMasterExecutionRole,arn:aws:iam::3333333333333333:role/LambdaAssumeRoleForMaster"
+                
+      1c. Click "Create parameter". 
+      
+      ****MAKE a note of the following: The parameter will have an ARN assingned that is not visible on the AWS console. You can use the AWS CLI[3] and run the below command. Copy the value for ARN.
+
+      Command: aws ssm get-parameter --name rolearnlist
+
+      Output:
+      ----------------------
+          {
+              "Parameter": {
+                  "Name": "rolearnlist",
+                  "Type": "StringList",
+                  "Value": "arn:aws:iam::22222222222222222:role/LambdaAssumeRoleForMaster,arn:aws:iam::111111111111:role/LambdaMasterExecutionRole,arn:aws:iam::3333333333333333:role/LambdaAssumeRoleForMaster",
+                  "Version": 3,
+                  "LastModifiedDate": 1574342598.982,
+                  "ARN": "arn:aws:ssm:us-west-1:11111111111111:parameter/rolearnlist"
+              }
+          }
+      -----------------------
+
+
+  MASTER:
+
+  1. In the MASTER account. Create the IAM role that will assume permissions to the SLAVE accounts:
+
+      1a. Go to the IAM Dashboard from the AWS Management Console. Quicklink: https://console.aws.amazon.com/iam/home
+      1b. Navigate to Roles >> Create role 
+      1c. On the Create Role Page. Choose "AWS Service" >> Lambda >> Then click "Next: Permissions". Atthach the following Permissions:
+
+              - AWSLambdaBasicExecutionRole
+              - CloudWatchLogsFullAccess
+              - AmazonEC2ReadOnlyAccess
+    
+      1d. Click "Next: Tags" (add tags you desire) >> Click "Next: Review" >> Add the following:
+
+              - Role name* = LambdaMasterExecutionRole
+              - Role description = add decription you desire
+
+      1e. Click "Create role"
+    
+    2. On the Roles page, search role "LambdaMasterExecutionRole" and select it. Then copy the "Role ARN" and save it some where. 
+    ***NOTE the ARN should look similar to this: "arn:aws:iam::111111111111:role/LambdaMasterExecutionRole".***
+
+      2a. On the same page for the role. Click on "Add inline policy". On the Create Policy page, select JSON. Copy and paste the below JSON text.
+
+            ***Note that for ssm:GetParameter. assign the ARN value from the STEPS provided for "SSM Parameter Store:".***
+            -----------------------------
+                {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": [
+                                "lambda:InvokeFunction",
+                                "lambda:InvokeAsync"
+                            ],
+                            "Resource": "*"
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Action": "ssm:GetParameter",
+                            "Resource": "arn:aws:ssm:us-west-1:11111111111111:parameter/rolearnlist"
+                        }
+                    ]
+                }
+            ------------------------------
+      2b. Click "Review policy" >> Create a name for the policy and Click Create Policy.
+    
+    3. On the same page for role "LambdaMasterExecutionRole". Create another inline policy for the assume role permissions. Place the JSON text similar to the below and substituting the Resource with all the ARN from the SLAVE roles.
+            ------------------------------
+              {
+                  "Version": "2012-10-17",
+                  "Statement": [
+                
+                      {
+                          "Effect": "Allow",
+                          "Action": "sts:AssumeRole",
+                          "Resource": "arn:aws:iam::111111111111:role/LambdaMasterExecutionRoler"
+                      },
+                      {
+                          "Effect": "Allow",
+                          "Action": "sts:AssumeRole",
+                          "Resource": "arn:aws:iam::222222222222:role/LambdaAssumeRoleForMaster"
+                      },
+                      {
+                          "Effect": "Allow",
+                          "Action": "sts:AssumeRole",
+                          "Resource": "arn:aws:iam::333333333333:role/LambdaAssumeRoleFromMaster"
+                      }
+                  ]
+              }
+            ------------------------------
+    *****(Source reference can be found here[4)*****
+
+    4. Create another in line policy for the S3 bucket the will be used to store the output for the lambda function. Use policy below:
+              ***NOTE: The S3 bucket name "lambda-output-list-instances" should be replaced with the bucket name that you created as per PREREQUISITES 3. This should also be substituted on CS function for succesful output upload.***
+              ------------------------------
+              {
+                  "Version": "2012-10-17",
+                  "Statement": [
+                      {
+                          "Effect": "Allow",
+                          "Action": [
+                              "s3:PutObject"
+                          ],
+                          "Resource": "arn:aws:s3:::lambda-output-list-instances/*"
+                      }
+                  ]
+              }
+              ------------------------------
+
+At This Point you have setup all the permissions requiered for lambda to execute the CS function.
+
+NOTES FOR TESTING IN LAMBDA:
+
+  - Pyhton files "LambdaListInstancesWithTagsSSM.py" and "LambdaListInstancesWithTagsLEV.py" are a fully detailed note commented for what each part of the code does.
+
+  - Python files "LambdaCodeTagsSSM.py" and "LambdaCodeTagsLEV.py" are CS without comments and details.
+
+  - When testing CS "LambdaCodeTagsSSM.py" or "LambdaListInstancesWithTagsSSM.py". Make sure that you only set LEV KEY1 as follows.
+      - KEY1: INSTANCE_TAGS  =  Tags that you are looking for to test.
+
+
+  - When testing Cs "LambdaCodeTagsLEV.py" or "LambdaListInstancesWithTagsLEV.py" Make sure that set LEV KEYS as follows:
+      - KEY1: INSTANCE_TAGS  =  Tags that you are looking for to test.
+      - KEY2: ROLE_ARNS  = The role ARNs of the accounts that should be assumed by the MASTER role to execute the Lambda CS.
+
+
+HAPPY TESTING. FEEL FREE TO SEND FEEDBACK FOR ANY ROOM FOR IMPROVEMENT.
+
+
+INDEX: Below are references for all mentioned acronyms with in the instructions above.
+-----------
+LEV = Lambda Environmental Variables.
+CS = Code or Script used with in the Lambda function.
+STATE = This indicates the status of an EC2 instance in an AWS account.
+MASTER = Refer to AWS account that will have the IAM Role to assume into other accounts and also where the Lambda Function will be executed.
+SLAVE = Refers to AWS account that will be have resources to test on.
+ARN = Amazon Resource Name[5]
+--------
+
+REFERENCES:
+[1] https://docs.aws.amazon.com/lambda/latest/dg/env_variables.html
+[2] https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-lifecycle.html
+[3] https://aws.amazon.com/cli/
+[4] https://aws.amazon.com/premiumsupport/knowledge-center/lambda-function-assume-iam-role/
+[5] https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html
