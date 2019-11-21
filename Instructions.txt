@@ -96,7 +96,6 @@ NOTE: For MASTER account. Make sure you create all the resources in the same reg
                   "Type": "StringList",
                   "Value": "arn:aws:iam::22222222222222222:role/LambdaAssumeRoleForMaster,arn:aws:iam::111111111111:role/LambdaMasterExecutionRole,arn:aws:iam::3333333333333333:role/LambdaAssumeRoleForMaster",
                   "Version": 3,
-                  "LastModifiedDate": 1574342598.982,
                   "ARN": "arn:aws:ssm:us-west-1:11111111111111:parameter/rolearnlist"
               }
           }
