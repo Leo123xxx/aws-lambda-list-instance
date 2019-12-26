@@ -21,7 +21,7 @@ PREREQUISITES:
 2. Make sure you have permissions to create IAM Roles in all accounts that will be tested.
 3. Make sure you have created an S3 bucket in the MASTER account to store the lambda function code execution output.
 
-NOTE: For best results. Have minimum 1 instances in any STATE[3] in all accounts that will be tested against different tags.
+NOTE: For best results. Have minimum 1 instances in any STATE[2] in all accounts that will be tested against different tags.
 
 STEPS:  
 
