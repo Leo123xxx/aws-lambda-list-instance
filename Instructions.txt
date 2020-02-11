@@ -1,7 +1,6 @@
 ################################################################################################################################################
 ## Description: Instructions for setting up AWS account for Lambda function to list ec2 instances with Dynamic tags in all regions for Multiple AWS accounts stored in SSM Parameter Store or Lambda Environmental Variables(LEV).
-## Author: Leo Makhubele
-## Email: leomakhubele@gmail.com
+## Author: Leo M
 ## GitHub Repository: https://github.com/Leo123xxx/aws-lambda-list-instance-sample.git
 ################################################################################################################################################
 
